@@ -1,8 +1,23 @@
 {
   "name": "drupal/media_view_addons",
-  "description": "Enhances media View and functionality.",
+  "description": "Adds an additional top level node column to the Media View (/admin/content/media).",
   "type": "drupal-module",
+  "homepage": "https://www.drupal.org/project/media_view_addons",
+  "support": {
+    "issues": "https://www.drupal.org/project/issues/media_view_addons"
+  },
   "license": "GPL-2.0+",
-  "minimum-stability": "dev",
-  "require": { }
+  "repositories": [{
+    "type": "package",
+    "package": {
+      "name": "drupal/media_view_addons",
+      "version": "8.0.0",
+      "type": "drupal-module",
+      "source": {
+        "url": "https://git.drupal.org/project/media_view_addons.git",
+        "type": "git",
+        "reference": "refs/heads/8.x-1.x"
+      }
+    }
+  }]
 }
