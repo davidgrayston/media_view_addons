@@ -11,7 +11,7 @@
     "type": "package",
     "package": {
       "name": "drupal/media_view_addons",
-      "version": "8.0.0",
+      "version": "dev-8.1.x",
       "type": "drupal-module",
       "source": {
         "url": "https://git.drupal.org/project/media_view_addons.git",
