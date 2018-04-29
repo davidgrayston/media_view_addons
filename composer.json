@@ -1,0 +1,8 @@
+{
+  "name": "drupal/media_view_addons",
+  "description": "Enhances media View and functionality.",
+  "type": "drupal-module",
+  "license": "GPL-2.0+",
+  "minimum-stability": "dev",
+  "require": { }
+}
