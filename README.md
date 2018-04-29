@@ -27,5 +27,5 @@ A hook is also offered to alter the links (title and url) this module provides. 
 
 Enable the module as usual.
 
-Edit the media view and add the "Media view add-ons top level node" field (under "Media View Add-ons").
+Edit the media view and add a media ID field ("Exclude from display), then add the "Media view add-ons top level node" field (under "Media View Add-ons").
 This will provide you with a new column with links to edit the top level node each media image belongs to.
