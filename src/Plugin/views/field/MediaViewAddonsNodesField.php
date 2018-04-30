@@ -19,7 +19,6 @@ use Drupal\Core\Url;
  * @ViewsField("media_view_addons_nodes_field")
  */
 class MediaViewAddonsNodesField extends FieldPluginBase {
-
   /**
    * @{inheritdoc}
    */
@@ -42,24 +41,8 @@ class MediaViewAddonsNodesField extends FieldPluginBase {
       // Get the mid from the media View.
       $row_media_image_id = intval($this->view->field['mid']->getValue($row));
 
-      // Use only nodes and paragraphs, this might expand in the future.
-      $entity_types = ['node', 'paragraph'];
-
-      // Get all entity reference revision fields on paragraphs and nodes.
-      $entity_rev_fields = $this->entityReferenceRevisionFields($entity_types);
-      // Get all image fields on paragraphs and nodes.
-      $image_fields = $this->entityImageFields($entity_types);
-      $fields_to_search = array_merge($entity_rev_fields, $image_fields);
-
-      // Here's where top level node IDs get stored.
-      $node_ids = [];
-      // And that's where we keep their references.
-      // For a start, just add the media View row image ID.
-      $non_node_ids = [$row_media_image_id];
-
       // Get all the top level node IDs.
-      $top_level_node_ids = $this->topLevelMediaNodes($entity_types, $fields_to_search, $non_node_ids, $node_ids);
-      if (!empty($top_level_node_ids)) {
+      if ($top_level_node_ids = $this->topLevelNids('media', $row_media_image_id)) {
         $links = [];
         $node_storage = \Drupal::entityTypeManager()->getStorage('node');
         foreach ($top_level_node_ids as $top_level_node_id) {
@@ -88,97 +71,70 @@ class MediaViewAddonsNodesField extends FieldPluginBase {
   }
 
   /**
-   * Get Entity Reference Revision fields from entity types.
+   * Get fields that reference entities.
    *
    * @param array $entity_types
    * @return array
    */
-  public function entityReferenceRevisionFields(array $entity_types) {
-    $entity_rr_fields = [];
-    foreach ($entity_types as $entity_type) {
-      $field_map = \Drupal::getContainer()->get('entity_field.manager')->getFieldMap();
-      $row_entity_fields = $field_map[$entity_type];
-      foreach ($row_entity_fields as $field_name => $field_info) {
-        // @todo This can be expanded to other types but
-        // entity reference revisions work really well with paragraphs.
-        if ($field_info['type'] == 'entity_reference_revisions') {
-          $entity_rr_fields[] = $field_name;
-        }
-      }
+  protected function entityReferenceFieldMap($entity_types = ['node', 'paragraph']) {
+    static $entity_reference_map;
+    if (is_array($entity_reference_map)) {
+      return $entity_reference_map;
     }
-    return array_values(array_unique($entity_rr_fields));
-  }
 
-  /**
-   * Get all image fields from entity types.
-   *
-   * @param array $entity_types
-   * @return array
-   */
-  public function entityImageFields(array $entity_types) {
-    $image_fields = [];
-    $field_map = \Drupal::getContainer()->get('entity_field.manager')->getFieldMap();
-    foreach ($field_map as $entity_type => $entity_field_maps) {
-      if (in_array($entity_type, $entity_types)) {
-        foreach ($entity_field_maps as $field_name => $field_info) {
-          // Only get image type fields.
-          if ($field_info['type'] == 'image') {
-            $image_fields[] = $field_name;
+    foreach ($entity_types as $entity_type_id) {
+      $bundles = \Drupal::getContainer()->get('entity_type.bundle.info')->getBundleInfo($entity_type_id);
+      foreach ($bundles as $bundle_id => $bundle) {
+        $field_definitions = \Drupal::getContainer()->get('entity_field.manager')->getFieldDefinitions($entity_type_id, $bundle_id);
+        foreach ($field_definitions as $field_definition) {
+          if ($target_type = $field_definition->getSetting('target_type')) {
+            $entity_reference_map[$target_type][$entity_type_id][$field_definition->getName()] = $field_definition;
           }
         }
       }
     }
-    return array_values(array_unique($image_fields));
+
+    return $entity_reference_map;
   }
 
   /**
-   * Get all top level media nodes from their referenced entities / media images.
+   * Return fields that reference provided entity type.
    *
-   * @param array $entity_types
-   * @param array $fields
-   * @param array $non_node_ids
-   * @param array $node_ids
-   * @param int $end
+   * @param $entity_type_id
    * @return array
    */
-  public function topLevelMediaNodes(array $entity_types, array $fields, array $non_node_ids, array $node_ids, $end = 0) {
-    $fetched_node_ids = $fetched_non_node_ids = [];
-    foreach ($non_node_ids as $non_node_id) {
-      foreach ($entity_types as $entity_type) {
-        foreach ($fields as $field) {
-          if (db_table_exists($entity_type . '__' . $field)) {
-            $connection = \Drupal::database();
-            $query = $connection->select($entity_type . '__' . $field, 'enf')
-              ->condition($field . '_target_id', $non_node_id, '=')
-              ->fields('enf', ['entity_id']);
-            $result = $query->execute()->fetchAllAssoc('entity_id');
-            foreach ($result as $row) {
-              if ($entity_type == 'node') {
-                $fetched_node_ids[] = intval($row->entity_id);
-              }
-              else {
-                $fetched_non_node_ids[] = intval($row->entity_id);
-              }
-            }
+  protected function entityReferenceFields($entity_type_id) {
+    $map = $this->entityReferenceFieldMap();
+    return $map[$entity_type_id] ?: [];
+  }
+
+  /**
+   * Get all top level nodes from their referenced entities.
+   *
+   * @param $entity_type_id
+   * @param $entity_id
+   * @return array
+   */
+  public function topLevelNids($entity_type_id, $entity_id) {
+    $connection = \Drupal::database();
+    $nids = [];
+    foreach ($this->entityReferenceFields($entity_type_id) as $parent_entity_type_id => $field_definitions) {
+      foreach ($field_definitions as $field_definition) {
+        $field_name = $field_definition->getName();
+        $query = $connection->select($parent_entity_type_id . '__' . $field_name, 'enf')
+          ->condition($field_name . '_target_id', $entity_id, '=')
+          ->fields('enf', ['entity_id']);
+        $result = $query->execute()->fetchAllAssoc('entity_id');
+        foreach ($result as $row) {
+          if ($parent_entity_type_id == 'node') {
+            $nids[] = intval($row->entity_id);
+          }
+          else {
+            $nids = array_merge($nids, $this->topLevelNids($parent_entity_type_id, $row->entity_id));
           }
         }
       }
     }
-    // Add the found node IDS to the initial basket.
-    foreach ($fetched_node_ids as $fetched_node_id) {
-      $node_ids[] = $fetched_node_id;
-    }
-    // Keep only the newly found "non-node" IDs for further looking up the tree.
-    $non_node_ids = $fetched_non_node_ids;
-
-    // If there are no other "non-node" IDs to scrutinize, it's exit time.
-    if (empty($non_node_ids) || $end == 4) {
-      return $node_ids;
-    }
-    else {
-      // If we're beyond level 2 just look for node type parents.
-      $entity_types = ($end == 3) ? ['node'] : $entity_types;
-      return $this->topLevelMediaNodes($entity_types, $fields, $non_node_ids, $node_ids, $end+1);
-    }
+    return $nids;
   }
 }
