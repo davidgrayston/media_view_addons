@@ -42,7 +42,7 @@ class MediaViewAddonsNodesField extends FieldPluginBase {
       $row_media_image_id = intval($this->view->field['mid']->getValue($row));
 
       // Get all the top level node IDs.
-      if ($top_level_node_ids = $this->topLevelNids('media', $row_media_image_id)) {
+      if ($top_level_node_ids = $this->topLevelNids('media', $row_media_image_id, $nesting_level = 0)) {
         $links = [];
         $node_storage = \Drupal::entityTypeManager()->getStorage('node');
         foreach ($top_level_node_ids as $top_level_node_id) {
@@ -113,9 +113,16 @@ class MediaViewAddonsNodesField extends FieldPluginBase {
    *
    * @param $entity_type_id
    * @param $entity_id
+   * @param $nesting_level
+   * @param int $nesting_limit
    * @return array
    */
-  public function topLevelNids($entity_type_id, $entity_id) {
+  public function topLevelNids($entity_type_id, $entity_id, $nesting_level, $nesting_limit = 5) {
+    // Prevent infinite loop.
+    if ($nesting_level >= $nesting_limit) {
+      return [];
+    }
+
     $connection = \Drupal::database();
     $nids = [];
     foreach ($this->entityReferenceFields($entity_type_id) as $parent_entity_type_id => $field_definitions) {
@@ -130,7 +137,7 @@ class MediaViewAddonsNodesField extends FieldPluginBase {
             $nids[] = intval($row->entity_id);
           }
           else {
-            $nids = array_merge($nids, $this->topLevelNids($parent_entity_type_id, $row->entity_id));
+            $nids = array_merge($nids, $this->topLevelNids($parent_entity_type_id, $row->entity_id, $nesting_level++));
           }
         }
       }
