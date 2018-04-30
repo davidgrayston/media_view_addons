@@ -62,9 +62,10 @@ class MediaViewAddonsNodesField extends FieldPluginBase {
       if (!empty($top_level_node_ids)) {
         $links = [];
         foreach ($top_level_node_ids as $top_level_node_id) {
-          // @todo: Some styling to be added here sometime.
+          $node_storage = \Drupal::entityTypeManager()->getStorage('node');
+          $node = $node_storage->load($top_level_node_id);
           $links[$top_level_node_id] = [
-            'title' => $this->t('Edit node @nid', ['@nid' => $top_level_node_id]),
+            'title' => $this->t('@title', ['@title' => $node->title->value]),
             'url' => Url::fromRoute('entity.node.edit_form', ['node' => $top_level_node_id]),
           ];
         }
