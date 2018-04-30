@@ -61,8 +61,8 @@ class MediaViewAddonsNodesField extends FieldPluginBase {
       $top_level_node_ids = $this->topLevelMediaNodes($entity_types, $fields_to_search, $non_node_ids, $node_ids);
       if (!empty($top_level_node_ids)) {
         $links = [];
+        $node_storage = \Drupal::entityTypeManager()->getStorage('node');
         foreach ($top_level_node_ids as $top_level_node_id) {
-          $node_storage = \Drupal::entityTypeManager()->getStorage('node');
           $node = $node_storage->load($top_level_node_id);
           $links[$top_level_node_id] = [
             'title' => $this->t('@title', ['@title' => $node->title->value]),
