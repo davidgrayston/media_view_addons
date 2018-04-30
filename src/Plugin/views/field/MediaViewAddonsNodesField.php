@@ -63,14 +63,12 @@ class MediaViewAddonsNodesField extends FieldPluginBase {
       if (!empty($top_level_node_ids)) {
         $links = [];
         $node_storage = \Drupal::entityTypeManager()->getStorage('node');
-        $cache_tags = [];
         foreach ($top_level_node_ids as $top_level_node_id) {
           $node = $node_storage->load($top_level_node_id);
           $links[$top_level_node_id] = [
             'title' => $this->t('@title', ['@title' => $node->title->value]),
             'url' => Url::fromRoute('entity.node.edit_form', ['node' => $top_level_node_id]),
           ];
-          $cache_tags = Cache::mergeTags($cache_tags, $node->getCacheTags());
         }
         // Allow other modules to alter the links array.
         \Drupal::moduleHandler()->invokeAll('media_view_addons_links', [&$links]);
@@ -79,7 +77,7 @@ class MediaViewAddonsNodesField extends FieldPluginBase {
           '#type' => 'operations',
           '#links' => $links,
           '#cache' => [
-            'tags' => $cache_tags,
+            'tags' => ['node_list'],
           ],
         ];
         return $this->renderer->render($operations);
