@@ -113,7 +113,7 @@ class MediaViewAddonsNodesField extends FieldPluginBase {
    *
    * @param $entity_type_id
    * @param $entity_id
-   * @param $nesting_level
+   * @param int $nesting_level
    * @param int $nesting_limit
    * @return array
    */
