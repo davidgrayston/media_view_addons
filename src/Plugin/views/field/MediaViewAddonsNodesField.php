@@ -10,7 +10,6 @@ namespace Drupal\media_view_addons\Plugin\views\field;
 use Drupal\views\Plugin\views\field\FieldPluginBase;
 use Drupal\views\ResultRow;
 use Drupal\Core\Url;
-use Drupal\Core\Cache\Cache;
 
 /**
  * Plugin to add a top level entity link to the media view.
