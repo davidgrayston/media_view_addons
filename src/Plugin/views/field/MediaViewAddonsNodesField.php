@@ -10,6 +10,7 @@ namespace Drupal\media_view_addons\Plugin\views\field;
 use Drupal\views\Plugin\views\field\FieldPluginBase;
 use Drupal\views\ResultRow;
 use Drupal\Core\Url;
+use Drupal\Core\Cache\Cache;
 
 /**
  * Plugin to add a top level entity link to the media view.
@@ -32,15 +33,15 @@ class MediaViewAddonsNodesField extends FieldPluginBase {
    *
    * Renders the top level node edit links for each media View row.
    *
-   * @param \Drupal\views\ResultRow $values
+   * @param \Drupal\views\ResultRow $row
    *   The values retrieved from a single row of a view's query result.
    *
    * @return \Drupal\Component\Render\MarkupInterface|\Drupal\Core\StringTranslation\TranslatableMarkup|\Drupal\views\Render\ViewsRenderPipelineMarkup|string
    */
-  public function render(ResultRow $values) {
+  public function render(ResultRow $row) {
     if (!empty($this->view->field['mid'])) {
       // Get the mid from the media View.
-      $row_media_image_id = intval($this->view->field['mid']->getValue($values));
+      $row_media_image_id = intval($this->view->field['mid']->getValue($row));
 
       // Use only nodes and paragraphs, this might expand in the future.
       $entity_types = ['node', 'paragraph'];
@@ -62,12 +63,14 @@ class MediaViewAddonsNodesField extends FieldPluginBase {
       if (!empty($top_level_node_ids)) {
         $links = [];
         $node_storage = \Drupal::entityTypeManager()->getStorage('node');
+        $cache_tags = [];
         foreach ($top_level_node_ids as $top_level_node_id) {
           $node = $node_storage->load($top_level_node_id);
           $links[$top_level_node_id] = [
             'title' => $this->t('@title', ['@title' => $node->title->value]),
             'url' => Url::fromRoute('entity.node.edit_form', ['node' => $top_level_node_id]),
           ];
+          $cache_tags = Cache::mergeTags($cache_tags, $node->getCacheTags());
         }
         // Allow other modules to alter the links array.
         \Drupal::moduleHandler()->invokeAll('media_view_addons_links', [&$links]);
@@ -75,6 +78,9 @@ class MediaViewAddonsNodesField extends FieldPluginBase {
         $operations['data'] = [
           '#type' => 'operations',
           '#links' => $links,
+          '#cache' => [
+            'tags' => $cache_tags,
+          ],
         ];
         return $this->renderer->render($operations);
       }
