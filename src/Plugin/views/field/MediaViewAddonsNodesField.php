@@ -32,15 +32,15 @@ class MediaViewAddonsNodesField extends FieldPluginBase {
    *
    * Renders the top level node edit links for each media View row.
    *
-   * @param \Drupal\views\ResultRow $values
+   * @param \Drupal\views\ResultRow $row
    *   The values retrieved from a single row of a view's query result.
    *
    * @return \Drupal\Component\Render\MarkupInterface|\Drupal\Core\StringTranslation\TranslatableMarkup|\Drupal\views\Render\ViewsRenderPipelineMarkup|string
    */
-  public function render(ResultRow $values) {
+  public function render(ResultRow $row) {
     if (!empty($this->view->field['mid'])) {
       // Get the mid from the media View.
-      $row_media_image_id = intval($this->view->field['mid']->getValue($values));
+      $row_media_image_id = intval($this->view->field['mid']->getValue($row));
 
       // Use only nodes and paragraphs, this might expand in the future.
       $entity_types = ['node', 'paragraph'];
@@ -75,6 +75,9 @@ class MediaViewAddonsNodesField extends FieldPluginBase {
         $operations['data'] = [
           '#type' => 'operations',
           '#links' => $links,
+          '#cache' => [
+            'tags' => ['node_list'],
+          ],
         ];
         return $this->renderer->render($operations);
       }
