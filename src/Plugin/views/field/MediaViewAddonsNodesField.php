@@ -120,8 +120,9 @@ class MediaViewAddonsNodesField extends FieldPluginBase {
         $this->moduleHandler->invokeAll('media_view_addons_links', [&$links]);
         // Make node edit links look like fancy operation dropdowns.
         $operations['data'] = [
-          '#type' => 'operations',
+          '#theme' => 'links',
           '#links' => $links,
+          '#attributes' => ['class' => ['admin-list']],
           '#cache' => [
             'tags' => ['node_list'],
           ],
