@@ -90,9 +90,9 @@ class EntityRelationshipManager implements EntityRelationshipManagerInterface {
     }
 
     $nids = [];
-    foreach ($this->entityReferenceFields($entity_type_id) as $parent_entity_type_id => $field_definitions) {
-      foreach ($field_definitions as $field_definition) {
-        $field_name = $field_definition->getName();
+    foreach ($this->entityReferenceFields($entity_type_id) as $parent_entity_type_id => $field_map) {
+      $field_names = array_keys($field_map);
+      foreach ($field_names as $field_name) {
         $query = $this->database->select($parent_entity_type_id . '__' . $field_name, 'enf')
           ->condition($field_name . '_target_id', $entity_id, '=')
           ->fields('enf', ['entity_id']);

@@ -13,7 +13,7 @@ interface EntityRelationshipManagerInterface {
    * @param $entity_id
    * @param int $nesting_level
    * @param int $nesting_limit
-   * @return mixed
+   * @return array
    */
   public function topLevelNids($entity_type_id, $entity_id, $nesting_level = 0, $nesting_limit = 5);
 }
