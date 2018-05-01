@@ -10,6 +10,10 @@ namespace Drupal\media_view_addons\Plugin\views\field;
 use Drupal\views\Plugin\views\field\FieldPluginBase;
 use Drupal\views\ResultRow;
 use Drupal\Core\Url;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use Drupal\media_view_addons\EntityRelationshipManagerInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Extension\ModuleHandlerInterface;
 
 /**
  * Plugin to add a top level entity link to the media view.
@@ -20,10 +24,67 @@ use Drupal\Core\Url;
  */
 class MediaViewAddonsNodesField extends FieldPluginBase {
   /**
+   * @var \Drupal\media_view_addons\EntityRelationshipManagerInterface
+   */
+  protected $entityRelationshipManager;
+
+  /**
+   * @var \Drupal\Core\Entity\EntityTypeManagerInterface
+   */
+  protected $entityTypeManager;
+
+  /**
+   * @var \Drupal\Core\Extension\ModuleHandlerInterface
+   */
+  protected $moduleHandler;
+
+  /**
    * @{inheritdoc}
    */
   public function query() {
     // Leave empty to avoid a query on this field.
+  }
+
+  /**
+   * @param \Symfony\Component\DependencyInjection\ContainerInterface $container
+   * @param array $configuration
+   * @param string $plugin_id
+   * @param mixed $plugin_definition
+   * @return static
+   */
+  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
+    return new static(
+      $configuration,
+      $plugin_id,
+      $plugin_definition,
+      $container->get('media_view_addons.relationship_manager'),
+      $container->get('entity_type.manager'),
+      $container->get('module_handler')
+    );
+  }
+
+  /**
+   * MediaViewAddonsNodesField constructor.
+   *
+   * @param array $configuration
+   * @param $plugin_id
+   * @param $plugin_definition
+   * @param \Drupal\media_view_addons\EntityRelationshipManagerInterface $entity_relationship_manager
+   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager
+   * @param \Drupal\Core\Extension\ModuleHandlerInterface $module_handler
+   */
+  public function __construct(
+    array $configuration,
+    $plugin_id,
+    $plugin_definition,
+    EntityRelationshipManagerInterface $entity_relationship_manager,
+    EntityTypeManagerInterface $entity_type_manager,
+    ModuleHandlerInterface $module_handler
+  ) {
+    parent::__construct($configuration, $plugin_id, $plugin_definition);
+    $this->entityRelationshipManager = $entity_relationship_manager;
+    $this->entityTypeManager = $entity_type_manager;
+    $this->moduleHandler = $module_handler;
   }
 
   /**
@@ -35,6 +96,9 @@ class MediaViewAddonsNodesField extends FieldPluginBase {
    *   The values retrieved from a single row of a view's query result.
    *
    * @return \Drupal\Component\Render\MarkupInterface|\Drupal\Core\StringTranslation\TranslatableMarkup|\Drupal\views\Render\ViewsRenderPipelineMarkup|string
+   *
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
+   * @throws \Exception
    */
   public function render(ResultRow $row) {
     if (!empty($this->view->field['mid'])) {
@@ -42,9 +106,9 @@ class MediaViewAddonsNodesField extends FieldPluginBase {
       $row_media_image_id = intval($this->view->field['mid']->getValue($row));
 
       // Get all the top level node IDs.
-      if ($top_level_node_ids = $this->topLevelNids('media', $row_media_image_id)) {
+      if ($top_level_node_ids = $this->entityRelationshipManager->topLevelNids('media', $row_media_image_id)) {
         $links = [];
-        $node_storage = \Drupal::entityTypeManager()->getStorage('node');
+        $node_storage = $this->entityTypeManager->getStorage('node');
         foreach ($top_level_node_ids as $top_level_node_id) {
           $node = $node_storage->load($top_level_node_id);
           $links[$top_level_node_id] = [
@@ -53,7 +117,7 @@ class MediaViewAddonsNodesField extends FieldPluginBase {
           ];
         }
         // Allow other modules to alter the links array.
-        \Drupal::moduleHandler()->invokeAll('media_view_addons_links', [&$links]);
+        $this->moduleHandler->invokeAll('media_view_addons_links', [&$links]);
         // Make node edit links look like fancy operation dropdowns.
         $operations['data'] = [
           '#type' => 'operations',
@@ -68,80 +132,5 @@ class MediaViewAddonsNodesField extends FieldPluginBase {
         return t('No nodes retrieved');
       }
     }
-  }
-
-  /**
-   * Get fields that reference entities.
-   *
-   * @param array $entity_types
-   * @return array
-   */
-  protected function entityReferenceFieldMap($entity_types = ['node', 'paragraph']) {
-    static $entity_reference_map;
-    if (is_array($entity_reference_map)) {
-      return $entity_reference_map;
-    }
-
-    foreach ($entity_types as $entity_type_id) {
-      $bundles = \Drupal::getContainer()->get('entity_type.bundle.info')->getBundleInfo($entity_type_id);
-      foreach ($bundles as $bundle_id => $bundle) {
-        $field_definitions = \Drupal::getContainer()->get('entity_field.manager')->getFieldDefinitions($entity_type_id, $bundle_id);
-        foreach ($field_definitions as $field_definition) {
-          if ($target_type = $field_definition->getSetting('target_type')) {
-            $entity_reference_map[$target_type][$entity_type_id][$field_definition->getName()] = $field_definition;
-          }
-        }
-      }
-    }
-
-    return $entity_reference_map;
-  }
-
-  /**
-   * Return fields that reference provided entity type.
-   *
-   * @param $entity_type_id
-   * @return array
-   */
-  protected function entityReferenceFields($entity_type_id) {
-    $map = $this->entityReferenceFieldMap();
-    return $map[$entity_type_id] ?: [];
-  }
-
-  /**
-   * Get all top level nodes from their referenced entities.
-   *
-   * @param $entity_type_id
-   * @param $entity_id
-   * @param int $nesting_level
-   * @param int $nesting_limit
-   * @return array
-   */
-  public function topLevelNids($entity_type_id, $entity_id, $nesting_level = 0, $nesting_limit = 5) {
-    // Prevent infinite loop.
-    if ($nesting_level >= $nesting_limit) {
-      return [];
-    }
-
-    $connection = \Drupal::database();
-    $nids = [];
-    foreach ($this->entityReferenceFields($entity_type_id) as $parent_entity_type_id => $field_definitions) {
-      foreach ($field_definitions as $field_definition) {
-        $field_name = $field_definition->getName();
-        $query = $connection->select($parent_entity_type_id . '__' . $field_name, 'enf')
-          ->condition($field_name . '_target_id', $entity_id, '=')
-          ->fields('enf', ['entity_id']);
-        $result = $query->execute()->fetchAllAssoc('entity_id');
-        foreach ($result as $row) {
-          if ($parent_entity_type_id == 'node') {
-            $nids[] = intval($row->entity_id);
-          }
-          else {
-            $nids = array_merge($nids, $this->topLevelNids($parent_entity_type_id, $row->entity_id, $nesting_level++));
-          }
-        }
-      }
-    }
-    return $nids;
   }
 }
